@@ -4,13 +4,17 @@ import { classNames } from "@/libs/class-names";
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   name?: string;
+  className?: string;
   required?: boolean;
   error?: { message?: string };
   type?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  function Input({ label, name = label, type = "text", error, ...props }, ref) {
+  function Input(
+    { label, name = label, className, type = "text", error, ...props },
+    ref
+  ) {
     const uid = useId();
     return (
       <div
@@ -33,7 +37,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           id={`${name}-${uid}`}
           type={type}
           className={
-            "block w-full border-0 p-0 text-gray-700 focus:ring-0 sm:text-sm placeholder-gray-400 leading-none"
+            "block w-full border-0 p-0 text-gray-700 focus:ring-0 sm:text-sm placeholder-gray-400 leading-none" +
+            (className ? ` ${className}` : "")
           }
           {...props}
           aria-invalid={error ? "true" : "false"}

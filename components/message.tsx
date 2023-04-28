@@ -7,6 +7,8 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import "katex/dist/katex.min.css"; // `rehype-katex` does not import the CSS for you;
 import ReactMarkdown from "react-markdown";
+import React, { useEffect } from "react";
+import mermaid from "mermaid";
 
 interface MessageProps {
   message: string;
@@ -15,20 +17,26 @@ interface MessageProps {
   partial?: boolean;
 }
 
-export default function Message({
+function Message({
   message,
   role,
   error,
   partial = false,
 }: MessageProps): JSX.Element {
+  useEffect(() => {
+    if (!partial && message.includes("```mermaid")) {
+      mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+    }
+  }, []);
+
   return (
     <div
       className={classNames(
-        "rounded m-1 p-2 text-sm",
+        "rounded py-3 px-4 text-sm max-w-[100%] break-words overflow-x-auto",
         role === "human"
-          ? "bg-blue-100"
+          ? "bg-orange-100"
           : role === "ai"
-          ? "bg-gray-100"
+          ? "bg-gray-50"
           : "hidden"
       )}
     >
@@ -36,11 +44,11 @@ export default function Message({
         <ReactMarkdown
           remarkPlugins={[remarkMath, remarkGfm]}
           rehypePlugins={[rehypeKatex, rehypeRaw]}
-          // skipHtml={false}
+          skipHtml={true}
           remarkRehypeOptions={{
             allowDangerousHtml: false,
             // passThrough: ["html"],
-            passThrough: ["span"],
+            // passThrough: ["span"],
           }}
           className="prose prose-sm max-w-none"
           // disallowedElements={["p"]}
@@ -48,17 +56,29 @@ export default function Message({
           components={{
             code({ node, inline, className, children, ...props }) {
               const match = /language-(\w+)/.exec(className || "");
-              return !inline && match ? (
-                <SyntaxHighlighter
-                  {...props}
-                  codeTagProps={{ className: "text-xs" }}
-                  style={style}
-                  language={match[1]}
-                  // PreTag="div"
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
+              return !inline ? (
+                match && match[1] === "mermaid" ? (
+                  // <div className="not-prose">
+                  <code className="mermaid text-sm">
+                    {String(children).replace(/\n$/, "")}
+                  </code>
+                ) : (
+                  <SyntaxHighlighter
+                    {...props}
+                    codeTagProps={{ className: "text-xs" }}
+                    style={style}
+                    language={match?.[1] || "text"}
+                    // PreTag="div"
+                    showInlineLineNumbers={true}
+                    wrapLines={true}
+                    wrapLongLines={true}
+                    showLineNumbers={false}
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                )
               ) : (
+                // Inline code
                 <code {...props} className={className}>
                   {children}
                 </code>
@@ -67,7 +87,7 @@ export default function Message({
             pre({ node, className, children, ...props }) {
               return (
                 <div className="not-prose">
-                  <pre className="text-sm">{children}</pre>
+                  <pre className="text-xs">{children}</pre>
                 </div>
               );
             },
@@ -76,14 +96,11 @@ export default function Message({
             },
           }}
         >
-          {/*{message +*/}
-          {/*  (partial*/}
-          {/*    ? "<span class='text-gray-500 animate-[ping_0.5s_ease-in-out_infinite]'>▌</span>"*/}
-          {/*    : "")}*/}
-          {message + (partial ? "▌" : "")}
+          {message + (partial ? " ▌" : "")}
         </ReactMarkdown>
-        {/*<pre className="whitespace-pre-wrap">{message}</pre>*/}
       </div>
     </div>
   );
 }
+
+export default React.memo(Message);
