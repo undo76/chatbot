@@ -38,7 +38,7 @@ function Message({
           ? "bg-orange-100"
           : role === "ai"
           ? "bg-gray-50"
-          : "hidden"
+          : "bg-blue-50"
       )}
     >
       <div>
