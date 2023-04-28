@@ -9,6 +9,7 @@ import "katex/dist/katex.min.css"; // `rehype-katex` does not import the CSS for
 import ReactMarkdown from "react-markdown";
 import React, { useEffect } from "react";
 import mermaid from "mermaid";
+import CodeSection from "@/components/code-section";
 
 interface MessageProps {
   message: string;
@@ -27,7 +28,7 @@ function Message({
     if (!partial && message.includes("```mermaid")) {
       mermaid.init(undefined, document.querySelectorAll(".mermaid"));
     }
-  }, []);
+  });
 
   return (
     <div
@@ -63,19 +64,21 @@ function Message({
                     {String(children).replace(/\n$/, "")}
                   </code>
                 ) : (
-                  <SyntaxHighlighter
-                    {...props}
-                    codeTagProps={{ className: "text-xs" }}
-                    style={style}
-                    language={match?.[1] || "text"}
-                    // PreTag="div"
-                    showInlineLineNumbers={true}
-                    wrapLines={true}
-                    wrapLongLines={true}
-                    showLineNumbers={false}
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
+                  <CodeSection code={String(children).replace(/\n$/, "")}>
+                    <SyntaxHighlighter
+                      {...props}
+                      codeTagProps={{ className: "text-xs" }}
+                      style={style}
+                      language={match?.[1] || "text"}
+                      // PreTag="div"
+                      showInlineLineNumbers={true}
+                      wrapLines={true}
+                      wrapLongLines={true}
+                      showLineNumbers={false}
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  </CodeSection>
                 )
               ) : (
                 // Inline code
