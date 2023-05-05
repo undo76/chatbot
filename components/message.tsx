@@ -33,21 +33,22 @@ function Message({
   return (
     <div
       className={classNames(
-        "rounded py-3 px-4 text-sm max-w-[100%] break-words overflow-x-auto",
+        "rounded py-3 px-4 text-sm break-words overflow-x-auto shadow",
         role === "human"
           ? "bg-orange-100"
           : role === "ai"
           ? "bg-gray-50"
-          : "bg-blue-50"
+          : "bg-blue-50 hidden",
+        partial && "shadow shadow-md"
       )}
     >
       <div>
         <ReactMarkdown
           remarkPlugins={[remarkMath, remarkGfm]}
           rehypePlugins={[rehypeKatex, rehypeRaw]}
-          skipHtml={true}
+          skipHtml={false}
           remarkRehypeOptions={{
-            allowDangerousHtml: false,
+            allowDangerousHtml: true,
             // passThrough: ["html"],
             // passThrough: ["span"],
           }}
@@ -60,9 +61,13 @@ function Message({
               return !inline ? (
                 match && match[1] === "mermaid" ? (
                   // <div className="not-prose">
-                  <code className="mermaid text-sm">
-                    {String(children).replace(/\n$/, "")}
-                  </code>
+                  <CodeSection code={String(children).replace(/\n$/, "")}>
+                    <div className="flex flex-row justify-around">
+                      <code className="mermaid text-sm flex-1">
+                        {String(children).replace(/\n$/, "")}
+                      </code>
+                    </div>
+                  </CodeSection>
                 ) : (
                   <CodeSection code={String(children).replace(/\n$/, "")}>
                     <SyntaxHighlighter

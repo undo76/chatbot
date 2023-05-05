@@ -4,6 +4,7 @@ import { Bars3Icon, CogIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { classNames } from "@/libs/class-names";
 import { PlusIcon } from "@heroicons/react/20/solid";
 import { ChatHistory } from "@/components/chat-history";
+import Overlay from "@/components/overlay";
 
 const navigation = [
   { name: "New Chat", href: "#", icon: PlusIcon, current: true },
@@ -23,10 +24,11 @@ export default function PageLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <>
-      <div>
+      <div className="h-screen flex flex-col">
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
@@ -159,6 +161,21 @@ export default function PageLayout({
                         </a>
                       </li>
                     ))}
+                    <li>
+                      <a
+                        className={classNames(
+                          "text-gray-400 hover:text-white hover:bg-gray-800",
+                          "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold"
+                        )}
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        <CogIcon
+                          className="h-6 w-6 shrink-0"
+                          aria-hidden="true"
+                        />
+                        Settings
+                      </a>
+                    </li>
                   </ul>
                 </li>
                 <li>
@@ -197,7 +214,11 @@ export default function PageLayout({
           </div>
         </div>
 
-        <main className="lg:pl-72">{children}</main>
+        <main className="lg:ml-72 flex-grow">{children}</main>
+
+        <Overlay title="Settings" open={settingsOpen} setOpen={setSettingsOpen}>
+          hello
+        </Overlay>
       </div>
     </>
   );

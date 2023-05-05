@@ -1,4 +1,3 @@
-import { ChatOpenAI } from "langchain/chat_models/openai";
 import {
   AIChatMessage,
   BaseChatMessage,
@@ -7,8 +6,7 @@ import {
 } from "langchain/schema";
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { ConversationChain } from "langchain/chains";
-import { BufferMemory } from "langchain/memory";
+import { chat } from "@/libs/chat";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -47,29 +45,16 @@ export default async function handler(
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Transfer-Encoding", "chunked");
 
-    const chatStreaming = new ChatOpenAI({
-      modelName: body.settings.model,
-      maxTokens: body.settings.maxTokens,
-      temperature: body.settings.temperature,
-      topP: body.settings.topP,
-      presencePenalty: body.settings.presencePenalty,
-      frequencyPenalty: body.settings.frequencyPenalty,
-      streaming: true,
-      callbacks: [
-        {
-          handleLLMNewToken(token: string) {
-            res.write(`${token}`);
-          },
-        },
-      ],
-      openAIApiKey: OPENAI_API_KEY,
-    });
+    const handleNewToken = (token: string) => {
+      res.write(`${token}`);
+    };
 
-    const response = await chatStreaming.call([...messages]);
+    // await chat(body.settings, messages, handleNewToken, OPENAI_API_KEY);
   } catch (error) {
     console.error(error);
     res.status(500).send("Internal Server Error");
   } finally {
+    console.log("Closing response");
     await res.end();
   }
 }
