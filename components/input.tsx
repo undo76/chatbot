@@ -37,8 +37,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           id={`${name}-${uid}`}
           type={type}
           className={
-            "block w-full border-0 p-0 text-gray-700 focus:ring-0 sm:text-sm placeholder-gray-400 leading-none" +
-            (className ? ` ${className}` : "")
+            "block border-0 p-0 text-gray-700 focus:ring-0 sm:text-sm placeholder-gray-400 leading-none" +
+            (className ? ` ${className}` : "w-full")
           }
           {...props}
           aria-invalid={error ? "true" : "false"}

@@ -9,14 +9,12 @@ import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
 import Message from "@/components/message";
 import ActionButton from "@/components/action-button";
-import { PaperAirplaneIcon, StopIcon } from "@heroicons/react/24/outline";
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { Select } from "@/components/select";
-import { state } from "sucrase/dist/types/parser/traverser/base";
 import { chat } from "@/libs/chat";
-import { Simulate } from "react-dom/test-utils";
-import abort = Simulate.abort;
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
+import { BaseChatMemory, BufferWindowMemory } from "langchain/memory";
 
 interface ChatbotState {
   settings: {
@@ -31,6 +29,7 @@ interface ChatbotState {
   inputMessage: string;
   currentMessage: string[] | null;
   sendingMessage: boolean;
+  memory: BaseChatMemory;
 }
 
 type ChatbotAction =
@@ -113,6 +112,12 @@ or $inline formula$)
   inputMessage: "",
   currentMessage: null,
   sendingMessage: false,
+  // memory: new BufferMemory({ returnMessages: true, memoryKey: "history" }),
+  memory: new BufferWindowMemory({
+    returnMessages: true,
+    memoryKey: "history",
+    k: 10,
+  }),
 };
 
 function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
@@ -244,14 +249,14 @@ function Chatbot() {
     }
   }, [state.sendingMessage]);
 
-  const reader = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
-
   const handleButtonClick = async (messages: BaseChatMessage[]) => {
     try {
       dispatch({ type: "START_AI_MESSAGE" });
       const response = await chat(
         state.settings,
-        messages,
+        messages[0].text,
+        messages[messages.length - 1].text,
+        state.memory,
         (message) => dispatch({ type: "ADD_TOKEN", token: message }),
         abortController.current.signal,
         process.env.OPENAI_API_KEY!
@@ -265,7 +270,7 @@ function Chatbot() {
   };
 
   return (
-    <div className="h-full relative flex flex-col justify-between">
+    <div className="h-full relative flex flex-col justify-between gap-4">
       <ul className="flex flex-col gap-1">
         {state.chatMessages.map((message, index) => (
           <Message
@@ -280,12 +285,13 @@ function Chatbot() {
             <Message
               message={state.currentMessage.join("")}
               role="ai"
+              nTokens={state.currentMessage.length}
               partial
             />
             <ActionButton
               icon={StopCircleIcon}
               rounded
-              className="absolute -top-4 -right-5 p-0"
+              className="absolute -bottom-5 right-0 left-0 p-0 mx-auto w-24 shadow"
               size="xs"
               onClick={async (event) => {
                 event.preventDefault();
@@ -299,7 +305,7 @@ function Chatbot() {
         )}
       </ul>
 
-      <div className="">
+      <div>
         <Panel>
           <form>
             <ChatbotOptions
@@ -319,10 +325,10 @@ function Chatbot() {
             {/*>*/}
             {/*  Reset*/}
             {/*</ActionButton>*/}
-            <div className="flex flex-row gap-2 items-start">
+            <div className="flex flex-row gap-1 items-stretch">
               <div className="flex-grow">
                 <Textarea
-                  label={"Your message"}
+                  // label={"Your message"}
                   placeholder={"Type your message here"}
                   ref={inputRef}
                   value={state.inputMessage}
@@ -350,11 +356,11 @@ function Chatbot() {
                 />
               </div>
 
-              <ActionButton
-                icon={PaperAirplaneIcon}
+              <button
                 disabled={!state.inputMessage}
                 type={"submit"}
-                color={"primary"}
+                // className="bg-blue-50  text-blue-800 hover:bg-blue-200 rounded rounded-lg p-2 shadow shadow-sm"
+                className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
                 onClick={async (event) => {
                   event.preventDefault();
                   dispatch({
@@ -364,8 +370,8 @@ function Chatbot() {
                   dispatch({ type: "CHANGE_INPUT_MESSAGE", message: "" });
                 }}
               >
-                Send
-              </ActionButton>
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
             </div>
           </form>
         </Panel>

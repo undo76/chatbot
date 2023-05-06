@@ -28,7 +28,7 @@ export default function PageLayout({
 
   return (
     <>
-      <div className="h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-gray-100">
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
@@ -210,7 +210,7 @@ export default function PageLayout({
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
           <div className="flex-1 text-sm font-semibold leading-6 text-white">
-            ChachoBot
+            Chacho<span className="text-red-400">Bot</span>
           </div>
         </div>
 

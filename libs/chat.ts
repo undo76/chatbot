@@ -1,12 +1,24 @@
 import { BaseChatMessage, BasePromptValue, LLMResult } from "langchain/schema";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { ConversationChain } from "langchain/chains";
-import { BufferMemory, ChatMessageHistory } from "langchain/memory";
+import {
+  BaseChatMemory,
+  BufferMemory,
+  ChatMessageHistory,
+} from "langchain/memory";
 import { Callbacks } from "langchain/callbacks";
+import {
+  ChatPromptTemplate,
+  HumanMessagePromptTemplate,
+  MessagesPlaceholder,
+  SystemMessagePromptTemplate,
+} from "langchain/prompts";
 
 export async function chat(
   settings: any,
-  messages: BaseChatMessage[],
+  systemMessage: string,
+  inputMessage: string,
+  memory: BaseChatMemory,
   handleNewToken: (token: string) => void,
   abortSignal: AbortSignal,
   openAIApiKey: string
@@ -54,22 +66,26 @@ export async function chat(
         },
       },
     ],
-    openAIApiKey:
-      openAIApiKey || "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",
+    openAIApiKey: openAIApiKey || "sk-xxx",
   });
 
-  const lastMessage = messages[messages.length - 1];
-  const restMessages = messages.slice(0, messages.length - 1);
+  // const lastMessage = messages[messages.length - 1];
+  // const restMessages = messages.slice(0, messages.length - 1);
+
+  const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+    SystemMessagePromptTemplate.fromTemplate(systemMessage),
+    new MessagesPlaceholder("history"),
+    HumanMessagePromptTemplate.fromTemplate("{input}"),
+  ]);
 
   const chainB = new ConversationChain({
     llm: chatStreaming,
+    prompt: chatPrompt,
     // verbose: true,
-    memory: new BufferMemory({
-      chatHistory: new ChatMessageHistory(restMessages),
-    }),
+    memory: memory,
   });
 
   await chainB.call({
-    input: lastMessage.text,
+    input: inputMessage,
   });
 }

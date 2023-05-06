@@ -16,6 +16,7 @@ interface MessageProps {
   role: "human" | "ai" | "system" | "generic";
   error?: string;
   partial?: boolean;
+  nTokens?: number;
 }
 
 function Message({
@@ -23,6 +24,7 @@ function Message({
   role,
   error,
   partial = false,
+  nTokens,
 }: MessageProps): JSX.Element {
   useEffect(() => {
     if (!partial && message.includes("```mermaid")) {
@@ -33,7 +35,7 @@ function Message({
   return (
     <div
       className={classNames(
-        "rounded py-3 px-4 text-sm break-words overflow-x-auto shadow",
+        "rounded py-3 px-4 text-sm break-words overflow-x-auto shadow relative",
         role === "human"
           ? "bg-orange-100"
           : role === "ai"
@@ -42,6 +44,11 @@ function Message({
         partial && "shadow shadow-md"
       )}
     >
+      {nTokens ? (
+        <div className="absolute bottom-1 right-1 p-1 text-xs opacity-50 bg-gray-200 rounded font-mono">
+          {nTokens}
+        </div>
+      ) : null}
       <div>
         <ReactMarkdown
           remarkPlugins={[remarkMath, remarkGfm]}
