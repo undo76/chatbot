@@ -10,7 +10,7 @@ function Home() {
   return (
     <PageLayout>
       <div ref={ref} className="h-full overflow-scroll p-10">
-        <div className=" flex-1 max-w-5xl w-full">
+        <div className=" m-auto max-w-5xl w-full">
           <Chatbot />
         </div>
       </div>

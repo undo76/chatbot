@@ -22,6 +22,7 @@ import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
 import { BaseChatMemory, BufferWindowMemory } from "langchain/memory";
 import { AbortError } from "p-retry";
+import { useSettings } from "@/components/settings";
 
 interface ChatbotState {
   name: string;
@@ -95,7 +96,8 @@ $$
 or $inline formula$)
 - Write directly to the browser Markdown interpreter
 - Write titles. Organize content with hierarchical headings
-- Enhance messages with tables, emojis, headings, lists, **well-formed** *mermaid*, links, **bold**, and *italics*
+- Enhance messages with tables, emojis, headings, lists, well-formed mermaid (escaping keywords), links, **bold**, and *italics*
+- You can also embed vegalite charts.
 - Show maps and routes in well-formed iframes with Google Maps. Just write the HTML code without escaping it.
 - You can render widgets in HTML/JS/CSS directly writing an iframe tag and the HTML code inside it.
 - Provide concise and accurate answers without sacrificing correctness
@@ -233,6 +235,7 @@ function Chatbot() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const abortController = useRef<AbortController>(new AbortController());
+  const { settings } = useSettings();
 
   const handleButtonClick = useCallback(
     async (messages: BaseChatMessage[]) => {
@@ -245,12 +248,15 @@ function Chatbot() {
           state.memory,
           (message) => dispatch({ type: "ADD_TOKEN", token: message }),
           abortController.current.signal,
-          process.env.OPENAI_API_KEY!
+          settings.openAiKey ?? ""
         );
       } catch (error: any) {
         if (error.name === "Error" && error.message === "Cancel: canceled") {
-          console.log("Aborted AI message", error.message);
-          return;
+          // When the AI message is aborted, we need to save the context in the memory manually
+          // await state.memory.saveContext(
+          //   { input: state.chatMessages[state.chatMessages.length - 1].text },
+          //   { output: state.currentMessage].text }
+          // );
         } else {
           console.error("Error in AI message", error);
         }
@@ -258,7 +264,7 @@ function Chatbot() {
         dispatch({ type: "END_AI_MESSAGE" });
       }
     },
-    [state.settings, state.memory]
+    [state, state.currentMessage]
   );
 
   useEffect(() => {
@@ -315,61 +321,70 @@ function Chatbot() {
 
       <div className="relative mt-auto">
         <Panel>
-          <form>
-            <ChatbotOptions
-              state={state}
-              onSettingsChange={(key, value) => {
-                handleSettingsChange(dispatch, key, value);
-              }}
-            />
-            {/*<ActionButton*/}
-            {/*  disabled={state.sendingMessage}*/}
-            {/*  className="ml-auto"*/}
-            {/*  onClick={async (event) => {*/}
-            {/*    event.preventDefault();*/}
-            {/*    dispatch({ type: "RESET" });*/}
-            {/*  }}*/}
-            {/*>*/}
-            {/*  Reset*/}
-            {/*</ActionButton>*/}
-            <div className="flex flex-row gap-1 items-stretch">
-              <div className="flex-grow">
-                <Textarea
-                  // label={"Your message"}
-                  placeholder={"Type your message here"}
-                  ref={inputRef}
-                  value={state.inputMessage || ""}
-                  rows={1}
-                  onChange={(event) => {
+          {!settings.openAiKey ? (
+            <div className="flex flex-col gap-2">
+              <p>
+                You need to set your OpenAI API key in the settings to use the
+                chatbot.
+              </p>
+            </div>
+          ) : (
+            <form>
+              <ChatbotOptions
+                state={state}
+                onSettingsChange={(key, value) => {
+                  handleSettingsChange(dispatch, key, value);
+                }}
+              />
+              {/*<ActionButton*/}
+              {/*  disabled={state.sendingMessage}*/}
+              {/*  className="ml-auto"*/}
+              {/*  onClick={async (event) => {*/}
+              {/*    event.preventDefault();*/}
+              {/*    dispatch({ type: "RESET" });*/}
+              {/*  }}*/}
+              {/*>*/}
+              {/*  Reset*/}
+              {/*</ActionButton>*/}
+              <div className="flex flex-row gap-1 items-stretch">
+                <div className="flex-grow">
+                  <Textarea
+                    // label={"Your message"}
+                    placeholder={"Type your message here"}
+                    ref={inputRef}
+                    value={state.inputMessage || ""}
+                    rows={1}
+                    onChange={(event) => {
+                      dispatch({
+                        type: "CHANGE_INPUT_MESSAGE",
+                        message: event.target.value,
+                      });
+                    }}
+                    onKeyDown={handleKeyDown}
+                  />
+                </div>
+
+                <button
+                  disabled={
+                    !state.inputMessage ||
+                    state.inputMessage.trim() === "" ||
+                    !!state.currentMessage?.length
+                  }
+                  type={"submit"}
+                  className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-sm enabled:hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={async (event) => {
+                    event.preventDefault();
                     dispatch({
-                      type: "CHANGE_INPUT_MESSAGE",
-                      message: event.target.value,
+                      type: "ADD_HUMAN_MESSAGE",
+                      message: state.inputMessage ?? "",
                     });
                   }}
-                  onKeyDown={handleKeyDown}
-                />
+                >
+                  <PaperAirplaneIcon className="w-5 h-5" />
+                </button>
               </div>
-
-              <button
-                disabled={
-                  !state.inputMessage ||
-                  state.inputMessage.trim() === "" ||
-                  !!state.currentMessage?.length
-                }
-                type={"submit"}
-                className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-sm enabled:hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={async (event) => {
-                  event.preventDefault();
-                  dispatch({
-                    type: "ADD_HUMAN_MESSAGE",
-                    message: state.inputMessage ?? "",
-                  });
-                }}
-              >
-                <PaperAirplaneIcon className="w-5 h-5" />
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
           {state.currentMessage && (
             <ActionButton
               icon={StopCircleIcon}

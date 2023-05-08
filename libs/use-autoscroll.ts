@@ -27,7 +27,7 @@ export default function useAutoScroll<T extends HTMLElement>(
     const elem = ref.current;
     const scrollHandler = () => {
       if (!elem) return;
-      if (elem.scrollTop >= elem.scrollHeight - elem.clientHeight - 100) {
+      if (elem.scrollTop >= elem.scrollHeight - elem.clientHeight - 10) {
         observerRef.current?.observe(elem, {
           childList: true,
           subtree: true,

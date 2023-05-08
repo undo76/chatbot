@@ -35,9 +35,9 @@ function Message({
   return (
     <div
       className={classNames(
-        "rounded py-3 px-4 text-sm break-words overflow-x-auto shadow relative",
+        "rounded py-3 px-4 text-sm break-words overflow-x-auto shadow relative ",
         role === "human"
-          ? "bg-orange-100"
+          ? "bg-orange-100 "
           : role === "ai"
           ? "bg-gray-50"
           : "bg-blue-50 hidden",
@@ -45,7 +45,7 @@ function Message({
       )}
     >
       {nTokens ? (
-        <div className="absolute bottom-1 right-1 p-1 text-xs opacity-50 bg-gray-200 rounded font-mono">
+        <div className="absolute bottom-1 right-1 p-1 text-xs opacity-50 bg-gray-200 rounded font-mono ">
           {nTokens}
         </div>
       ) : null}

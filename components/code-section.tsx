@@ -27,7 +27,7 @@ export default function CodeSection({
       {children}
       <div className="absolute top-2 right-2">
         <CopyToClipboard text={code} onCopy={handleCopy}>
-          <button className=" text-gray-300 bg-gray-700 hover:bg-gray-600 p-1 rounded text-sm opacity-75">
+          <button className=" text-black bg-gray-300 hover:bg-gray-200 p-1 rounded text-sm opacity-50">
             {copied ? (
               <CheckIcon className="h-4 w-4" />
             ) : (
