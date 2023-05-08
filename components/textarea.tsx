@@ -27,7 +27,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       if (ref && "current" in ref && ref.current) {
         autoGrow(ref.current as HTMLTextAreaElement);
       }
-    });
+    }, [ref, props.value]);
 
     return (
       <div>

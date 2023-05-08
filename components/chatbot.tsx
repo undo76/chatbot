@@ -1,4 +1,10 @@
-import React, { Dispatch, useEffect, useReducer, useRef } from "react";
+import React, {
+  Dispatch,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+} from "react";
 import {
   AIChatMessage,
   BaseChatMessage,
@@ -15,8 +21,10 @@ import { chat } from "@/libs/chat";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
 import { BaseChatMemory, BufferWindowMemory } from "langchain/memory";
+import { AbortError } from "p-retry";
 
 interface ChatbotState {
+  name: string;
   settings: {
     model: string;
     maxTokens: number;
@@ -26,7 +34,7 @@ interface ChatbotState {
     presencePenalty: number;
   };
   chatMessages: BaseChatMessage[];
-  inputMessage: string;
+  inputMessage: string | null;
   currentMessage: string[] | null;
   sendingMessage: boolean;
   memory: BaseChatMemory;
@@ -59,10 +67,11 @@ type ChatbotAction =
     }
   | {
       type: "CHANGE_INPUT_MESSAGE";
-      message: string;
+      message: string | null;
     };
 
 const DEFAULT_STATE: ChatbotState = {
+  name: "New chat",
   settings: {
     model: "gpt-3.5-turbo",
     maxTokens: 1000,
@@ -72,18 +81,6 @@ const DEFAULT_STATE: ChatbotState = {
     presencePenalty: 0,
   },
   chatMessages: [
-    // new SystemChatMessage(
-    //   "You are a truthful assistant to an intelligent well-educated human. " +
-    //     "You write directly into the browser Markdown interpreter. " +
-    //     "You always write your response in Markdown. " +
-    //     "Use $\\KaTeX$ for displaying math formulas (using \n$$\n...\n$$\n\n for block, and $...$ for inline). " +
-    //     "Use hierarchical headings. " +
-    //     "Use tables, emojis, headings, lists, **well-formed** *mermaid*, links. " +
-    //     "Use **bold** and *italics* for **highlighting** and *emphasis*. " +
-    //     "You can display maps and routes in a well-formed iframe using google maps. " +
-    //     "Prefer concise answers but don't sacrifice correctness. " +
-    //     "Not need to be polite, but don't be rude."
-    // ),
     new SystemChatMessage(`
 You are a browser-based assistant! Designed for intelligent and well-educated users, you provide truthful and efficient support through the browser's Markdown interpreter.
 
@@ -104,15 +101,10 @@ or $inline formula$)
 - Provide concise and accurate answers without sacrificing correctness
 - Experience a straightforward, respectful, and professional communication style
     `),
-    // new HumanChatMessage("Render a Hello world application in an iframe."),
-    // new AIChatMessage(
-    //   "<iframe srcdoc='<html><body><h1>Hello world</h1></body></html>'></iframe>"
-    // ),
   ],
-  inputMessage: "",
+  inputMessage: null,
   currentMessage: null,
   sendingMessage: false,
-  // memory: new BufferMemory({ returnMessages: true, memoryKey: "history" }),
   memory: new BufferWindowMemory({
     returnMessages: true,
     memoryKey: "history",
@@ -149,6 +141,7 @@ function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
           new HumanChatMessage(action.message),
         ],
         sendingMessage: true,
+        inputMessage: null,
       };
     case "HUMAN_MESSAGE SENT":
       return {
@@ -241,6 +234,33 @@ function Chatbot() {
 
   const abortController = useRef<AbortController>(new AbortController());
 
+  const handleButtonClick = useCallback(
+    async (messages: BaseChatMessage[]) => {
+      try {
+        dispatch({ type: "START_AI_MESSAGE" });
+        const response = await chat(
+          state.settings,
+          messages[0].text,
+          messages[messages.length - 1].text,
+          state.memory,
+          (message) => dispatch({ type: "ADD_TOKEN", token: message }),
+          abortController.current.signal,
+          process.env.OPENAI_API_KEY!
+        );
+      } catch (error: any) {
+        if (error.name === "Error" && error.message === "Cancel: canceled") {
+          console.log("Aborted AI message", error.message);
+          return;
+        } else {
+          console.error("Error in AI message", error);
+        }
+      } finally {
+        dispatch({ type: "END_AI_MESSAGE" });
+      }
+    },
+    [state.settings, state.memory]
+  );
+
   useEffect(() => {
     if (state.sendingMessage) {
       handleButtonClick(state.chatMessages).finally(() =>
@@ -249,29 +269,32 @@ function Chatbot() {
     }
   }, [state.sendingMessage]);
 
-  const handleButtonClick = async (messages: BaseChatMessage[]) => {
-    try {
-      dispatch({ type: "START_AI_MESSAGE" });
-      const response = await chat(
-        state.settings,
-        messages[0].text,
-        messages[messages.length - 1].text,
-        state.memory,
-        (message) => dispatch({ type: "ADD_TOKEN", token: message }),
-        abortController.current.signal,
-        process.env.OPENAI_API_KEY!
-      );
-    } catch (error) {
-      console.error("Error streaming chatbot");
-      console.error(error);
-    } finally {
-      dispatch({ type: "END_AI_MESSAGE" });
-    }
-  };
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter") {
+        if (!event.shiftKey) {
+          event.preventDefault();
+        }
+        if (
+          !event.shiftKey &&
+          state.inputMessage &&
+          state.inputMessage.trim() !== "" &&
+          !state.currentMessage?.length
+        ) {
+          if (state.currentMessage?.length) return;
+          dispatch({
+            type: "ADD_HUMAN_MESSAGE",
+            message: state.inputMessage,
+          });
+        }
+      }
+    },
+    [state.inputMessage, state.currentMessage]
+  );
 
   return (
-    <div className="h-full relative flex flex-col justify-between gap-4">
-      <ul className="flex flex-col gap-1">
+    <div className="flex flex-col justify-around gap-4">
+      <ul className="flex flex-col gap-1 mb-auto">
         {state.chatMessages.map((message, index) => (
           <Message
             message={message.text}
@@ -281,31 +304,16 @@ function Chatbot() {
         ))}
 
         {state.currentMessage && (
-          <div className="relative">
-            <Message
-              message={state.currentMessage.join("")}
-              role="ai"
-              nTokens={state.currentMessage.length}
-              partial
-            />
-            <ActionButton
-              icon={StopCircleIcon}
-              rounded
-              className="absolute -bottom-5 right-0 left-0 p-0 mx-auto w-24 shadow"
-              size="xs"
-              onClick={async (event) => {
-                event.preventDefault();
-                abortController.current.abort("User aborted");
-                abortController.current = new AbortController();
-              }}
-            >
-              Cancel
-            </ActionButton>
-          </div>
+          <Message
+            message={state.currentMessage.join("")}
+            role="ai"
+            nTokens={state.currentMessage.length}
+            partial
+          />
         )}
       </ul>
 
-      <div>
+      <div className="relative mt-auto">
         <Panel>
           <form>
             <ChatbotOptions
@@ -314,7 +322,6 @@ function Chatbot() {
                 handleSettingsChange(dispatch, key, value);
               }}
             />
-
             {/*<ActionButton*/}
             {/*  disabled={state.sendingMessage}*/}
             {/*  className="ml-auto"*/}
@@ -331,7 +338,7 @@ function Chatbot() {
                   // label={"Your message"}
                   placeholder={"Type your message here"}
                   ref={inputRef}
-                  value={state.inputMessage}
+                  value={state.inputMessage || ""}
                   rows={1}
                   onChange={(event) => {
                     dispatch({
@@ -339,41 +346,45 @@ function Chatbot() {
                       message: event.target.value,
                     });
                   }}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" &&
-                      !event.shiftKey &&
-                      state.inputMessage.trim() !== ""
-                    ) {
-                      event.preventDefault();
-                      dispatch({
-                        type: "ADD_HUMAN_MESSAGE",
-                        message: state.inputMessage,
-                      });
-                      dispatch({ type: "CHANGE_INPUT_MESSAGE", message: "" });
-                    }
-                  }}
+                  onKeyDown={handleKeyDown}
                 />
               </div>
 
               <button
-                disabled={!state.inputMessage}
+                disabled={
+                  !state.inputMessage ||
+                  state.inputMessage.trim() === "" ||
+                  !!state.currentMessage?.length
+                }
                 type={"submit"}
-                // className="bg-blue-50  text-blue-800 hover:bg-blue-200 rounded rounded-lg p-2 shadow shadow-sm"
-                className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-sm hover:bg-indigo-100"
+                className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-sm enabled:hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={async (event) => {
                   event.preventDefault();
                   dispatch({
                     type: "ADD_HUMAN_MESSAGE",
-                    message: state.inputMessage,
+                    message: state.inputMessage ?? "",
                   });
-                  dispatch({ type: "CHANGE_INPUT_MESSAGE", message: "" });
                 }}
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
               </button>
             </div>
           </form>
+          {state.currentMessage && (
+            <ActionButton
+              icon={StopCircleIcon}
+              rounded
+              className="absolute -top-5 right-0 left-0 p-0 mx-auto w-24 shadow"
+              size="xs"
+              onClick={async (event) => {
+                event.preventDefault();
+                abortController.current.abort("User aborted");
+                abortController.current = new AbortController();
+              }}
+            >
+              Cancel
+            </ActionButton>
+          )}
         </Panel>
       </div>
     </div>

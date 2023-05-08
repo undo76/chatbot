@@ -8,9 +8,6 @@ import LinkButton from "@/components/link-button";
 import { useEffect, useState } from "react";
 
 export function ChatHistory({}: {}) {
-  // chatHistory is stored in the LocalStorage
-  // const chatHistory = [];
-
   const [chatHistory, setChatHistory] = useState([]);
   useEffect(() => {
     const chatHistory = localStorage.getItem("chatHistory");

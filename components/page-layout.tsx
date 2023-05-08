@@ -1,10 +1,11 @@
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { Bars3Icon, CogIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { classNames } from "@/libs/class-names";
 import { PlusIcon } from "@heroicons/react/20/solid";
 import { ChatHistory } from "@/components/chat-history";
 import Overlay from "@/components/overlay";
+import useAutoScroll from "@/libs/use-autoscroll";
 
 const navigation = [
   { name: "New Chat", href: "#", icon: PlusIcon, current: true },
@@ -28,7 +29,7 @@ export default function PageLayout({
 
   return (
     <>
-      <div className="min-h-screen flex flex-col bg-gray-100">
+      <div className="h-screen flex flex-col bg-gray-100">
         <Transition.Root show={sidebarOpen} as={Fragment}>
           <Dialog
             as="div"
@@ -214,7 +215,7 @@ export default function PageLayout({
           </div>
         </div>
 
-        <main className="lg:ml-72 flex-grow">{children}</main>
+        <main className="lg:ml-72 flex-grow overflow-hidden">{children}</main>
 
         <Overlay title="Settings" open={settingsOpen} setOpen={setSettingsOpen}>
           hello
