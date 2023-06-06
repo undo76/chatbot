@@ -1,20 +1,19 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface Settings {
   openAiKey?: string;
-  // theme: string;
-  // language: string;
-  // notifications: boolean;
+  showPrompt: boolean;
 }
 
 interface SettingsContextValue {
   settings: Settings;
-  updateSettings: (newSettings: Settings) => void;
+  updateSettings: (newSettings: Partial<Settings>) => void;
 }
 
 const defaultSettings: Settings = {
   openAiKey: undefined,
-};
+  showPrompt: false,
+} as const;
 
 const SettingsContext = createContext<SettingsContextValue>({
   settings: defaultSettings,
@@ -37,9 +36,10 @@ export const SettingsProvider = ({
     }
   }, []);
 
-  const updateSettings = (newSettings: Settings) => {
-    setSettings(newSettings);
-    localStorage.setItem("settings", JSON.stringify(newSettings));
+  const updateSettings = (newSettings: Partial<Settings>) => {
+    const next = { ...settings, ...newSettings } as const;
+    setSettings(next);
+    localStorage.setItem("settings", JSON.stringify(next));
   };
 
   return (

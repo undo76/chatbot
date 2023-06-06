@@ -10,24 +10,26 @@ import ReactMarkdown from "react-markdown";
 import React, { useEffect } from "react";
 import mermaid from "mermaid";
 import CodeSection from "@/components/code-section";
+import { useSettings } from "@/components/settings";
 
 interface MessageProps {
-  message: string;
   role: "human" | "ai" | "system" | "generic";
+  content: string;
   error?: string;
   partial?: boolean;
   nTokens?: number;
 }
 
 function Message({
-  message,
   role,
+  content,
   error,
   partial = false,
   nTokens,
 }: MessageProps): JSX.Element {
+  const { settings } = useSettings();
   useEffect(() => {
-    if (!partial && message.includes("```mermaid")) {
+    if (!partial && content.includes("```mermaid")) {
       mermaid.init(undefined, document.querySelectorAll(".mermaid"));
     }
   });
@@ -40,7 +42,10 @@ function Message({
           ? "bg-orange-100 "
           : role === "ai"
           ? "bg-gray-50"
-          : "bg-blue-50 hidden",
+          : settings.showPrompt
+          ? "bg-blue-50"
+          : "hidden",
+
         partial && "shadow shadow-md"
       )}
     >
@@ -111,7 +116,7 @@ function Message({
             },
           }}
         >
-          {message + (partial ? " ▌" : "")}
+          {content + (partial ? " ▌" : "")}
         </ReactMarkdown>
       </div>
     </div>

@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import {
   AIChatMessage,
@@ -21,11 +22,12 @@ import { chat } from "@/libs/chat";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
 import { BaseChatMemory, BufferWindowMemory } from "langchain/memory";
-import { AbortError } from "p-retry";
 import { useSettings } from "@/components/settings";
+import { addChatSession, addMessage } from "@/libs/use-chat";
+import { DEFAULT_PROMPT } from "@/libs/prompts";
 
 interface ChatbotState {
-  name: string;
+  sessionId: number | null;
   settings: {
     model: string;
     maxTokens: number;
@@ -42,6 +44,10 @@ interface ChatbotState {
 }
 
 type ChatbotAction =
+  | {
+      type: "START_SESSION";
+      sessionId: number;
+    }
   | {
       type: "START_AI_MESSAGE";
     }
@@ -72,7 +78,7 @@ type ChatbotAction =
     };
 
 const DEFAULT_STATE: ChatbotState = {
-  name: "New chat",
+  sessionId: null,
   settings: {
     model: "gpt-3.5-turbo",
     maxTokens: 1000,
@@ -81,29 +87,7 @@ const DEFAULT_STATE: ChatbotState = {
     frequencyPenalty: 0,
     presencePenalty: 0,
   },
-  chatMessages: [
-    new SystemChatMessage(`
-You are a browser-based assistant! Designed for intelligent and well-educated users, you provide truthful and efficient support through the browser's Markdown interpreter.
-
-## Key features and mandatory instructions for your responses:
-
-- Display math formulas, algorithms and other $\\LaTeX$ content using $\\KaTeX$ dialect (using
-
-$$
-block formula, algorithm, table, code, etc.
-$$
-
-or $inline formula$)
-- Write directly to the browser Markdown interpreter
-- Write titles. Organize content with hierarchical headings
-- Enhance messages with tables, emojis, headings, lists, well-formed mermaid (escaping keywords), links, **bold**, and *italics*
-- You can also embed vegalite charts.
-- Show maps and routes in well-formed iframes with Google Maps. Just write the HTML code without escaping it.
-- You can render widgets in HTML/JS/CSS directly writing an iframe tag and the HTML code inside it.
-- Provide concise and accurate answers without sacrificing correctness
-- Experience a straightforward, respectful, and professional communication style
-    `),
-  ],
+  chatMessages: [new SystemChatMessage(DEFAULT_PROMPT)],
   inputMessage: null,
   currentMessage: null,
   sendingMessage: false,
@@ -116,6 +100,11 @@ or $inline formula$)
 
 function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
   switch (action.type) {
+    case "START_SESSION":
+      return {
+        ...state,
+        sessionId: action.sessionId,
+      };
     case "START_AI_MESSAGE":
       return {
         ...state,
@@ -237,8 +226,26 @@ function Chatbot() {
   const abortController = useRef<AbortController>(new AbortController());
   const { settings } = useSettings();
 
+  // useEffect(() => {
+  //   if (state.sessionId === null) {
+  //     addChatSession("New chat session").then((sessionId) =>
+  //       dispatch({
+  //         type: "START_SESSION",
+  //         sessionId: sessionId,
+  //       })
+  //     );
+  //   }
+  // }, [state.sessionId]);
+
   const handleButtonClick = useCallback(
     async (messages: BaseChatMessage[]) => {
+      // const sessionId =
+      //   state.sessionId ?? (await addChatSession("New chat session"));
+      // dispatch({
+      //   type: "START_SESSION",
+      //   sessionId: sessionId,
+      // });
+      // addMessage(sessionId,  "human", messages[0].text);
       try {
         dispatch({ type: "START_AI_MESSAGE" });
         const response = await chat(
@@ -264,7 +271,7 @@ function Chatbot() {
         dispatch({ type: "END_AI_MESSAGE" });
       }
     },
-    [state, state.currentMessage]
+    [state, state.currentMessage, settings.openAiKey]
   );
 
   useEffect(() => {
@@ -298,12 +305,20 @@ function Chatbot() {
     [state.inputMessage, state.currentMessage]
   );
 
+  // const [messages, setMessages] = useState<BaseChatMessage[]>([]);
+  //
+  // useEffect(() => {
+  //   state.memory.chatHistory.getMessages().then((messages) => {
+  //     setMessages(messages);
+  //   });
+  // }, [state]);
+
   return (
     <div className="flex flex-col justify-around gap-4">
       <ul className="flex flex-col gap-1 mb-auto">
         {state.chatMessages.map((message, index) => (
           <Message
-            message={message.text}
+            content={message.text}
             role={message._getType()}
             key={index}
           />
@@ -311,7 +326,7 @@ function Chatbot() {
 
         {state.currentMessage && (
           <Message
-            message={state.currentMessage.join("")}
+            content={state.currentMessage.join("")}
             role="ai"
             nTokens={state.currentMessage.length}
             partial
