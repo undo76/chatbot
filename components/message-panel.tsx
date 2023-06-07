@@ -56,7 +56,7 @@ function MessagePanel({
       ) : null}
       <div>
         {role !== "ai" ? (
-          content
+          <div className="whitespace-pre-wrap prose prose-sm">{content}</div>
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkMath, remarkGfm]}
