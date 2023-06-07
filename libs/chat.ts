@@ -6,7 +6,7 @@ import {
 } from "langchain/schema";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { ConversationChain } from "langchain/chains";
-import { BaseChatMemory } from "langchain/memory";
+import { BufferWindowMemory, ChatMessageHistory } from "langchain/memory";
 import { CallbackManagerForLLMRun } from "langchain/callbacks";
 import {
   ChatPromptTemplate,
@@ -87,7 +87,7 @@ export async function chat(
   settings: any,
   systemMessage: string,
   inputMessage: string,
-  memory: BaseChatMemory,
+  chatMessageHistory: ChatMessageHistory,
   handleNewToken: (token: string) => void,
   abortSignal: AbortSignal,
   openAIApiKey: string
@@ -119,10 +119,17 @@ export async function chat(
     HumanMessagePromptTemplate.fromTemplate("{input}"),
   ]);
 
-  const chainB = new ConversationChain({
+  const memory = new BufferWindowMemory({
+    returnMessages: true,
+    memoryKey: "history",
+    chatHistory: chatMessageHistory,
+    k: 5, // this is the number of interactions to return (multiplied by 2)
+  });
+
+  const chain = new ConversationChain({
     llm: chatStreaming,
     prompt: chatPrompt,
-    verbose: true,
+    verbose: false,
     memory: memory,
     callbacks: [
       {
@@ -137,7 +144,6 @@ export async function chat(
               await memory.chatHistory.getMessages()
             )
           );
-          console.log("handleChainEnd", outputs, runId, parentRunId);
         },
         handleChainError(
           err: Error,
@@ -150,7 +156,7 @@ export async function chat(
     ],
   });
 
-  const response = await chainB.call({
+  return await chain.call({
     input: inputMessage,
   });
 }

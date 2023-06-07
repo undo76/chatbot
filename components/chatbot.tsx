@@ -4,7 +4,6 @@ import React, {
   useEffect,
   useReducer,
   useRef,
-  useState,
 } from "react";
 import {
   AIChatMessage,
@@ -14,17 +13,28 @@ import {
 } from "langchain/schema";
 import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
-import Message from "@/components/message";
+import MessagePanel from "@/components/message-panel";
 import ActionButton from "@/components/action-button";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { Select } from "@/components/select";
 import { chat } from "@/libs/chat";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
-import { BaseChatMemory, BufferWindowMemory } from "langchain/memory";
+import {
+  BaseChatMemory,
+  BufferWindowMemory,
+  ChatMessageHistory,
+} from "langchain/memory";
 import { useSettings } from "@/components/settings";
-import { addChatSession, addMessage } from "@/libs/use-chat";
 import { DEFAULT_PROMPT } from "@/libs/prompts";
+import {
+  addChatSession,
+  addMessage,
+  saveMessages,
+  useMessages,
+} from "@/libs/use-chat";
+import { chatTitle } from "@/libs/chat-title";
+import { useChatMessages } from "@/libs/use-chat-messages";
 
 interface ChatbotState {
   sessionId: number | null;
@@ -39,13 +49,17 @@ interface ChatbotState {
   chatMessages: BaseChatMessage[];
   inputMessage: string | null;
   currentMessage: string[] | null;
+  creatingSession: boolean;
   sendingMessage: boolean;
-  memory: BaseChatMemory;
+  // memory: BaseChatMemory;
 }
 
 type ChatbotAction =
   | {
       type: "START_SESSION";
+    }
+  | {
+      type: "SESSION_CREATED";
       sessionId: number;
     }
   | {
@@ -90,12 +104,13 @@ const DEFAULT_STATE: ChatbotState = {
   chatMessages: [new SystemChatMessage(DEFAULT_PROMPT)],
   inputMessage: null,
   currentMessage: null,
+  creatingSession: false,
   sendingMessage: false,
-  memory: new BufferWindowMemory({
-    returnMessages: true,
-    memoryKey: "history",
-    k: 10,
-  }),
+  // memory: new BufferWindowMemory({
+  //   returnMessages: true,
+  //   memoryKey: "history",
+  //   k: 10,
+  // }),
 };
 
 function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
@@ -103,6 +118,12 @@ function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
     case "START_SESSION":
       return {
         ...state,
+        creatingSession: true,
+      };
+    case "SESSION_CREATED":
+      return {
+        ...state,
+        creatingSession: false,
         sessionId: action.sessionId,
       };
     case "START_AI_MESSAGE":
@@ -219,66 +240,64 @@ function ChatbotOptions(props: {
   );
 }
 
-function Chatbot() {
+function Chatbot(sessionId: number | null) {
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const abortController = useRef<AbortController>(new AbortController());
   const { settings } = useSettings();
 
-  // useEffect(() => {
-  //   if (state.sessionId === null) {
-  //     addChatSession("New chat session").then((sessionId) =>
-  //       dispatch({
-  //         type: "START_SESSION",
-  //         sessionId: sessionId,
-  //       })
-  //     );
-  //   }
-  // }, [state.sessionId]);
-
   const handleButtonClick = useCallback(
     async (messages: BaseChatMessage[]) => {
-      // const sessionId =
-      //   state.sessionId ?? (await addChatSession("New chat session"));
-      // dispatch({
-      //   type: "START_SESSION",
-      //   sessionId: sessionId,
-      // });
-      // addMessage(sessionId,  "human", messages[0].text);
       try {
         dispatch({ type: "START_AI_MESSAGE" });
+
         const response = await chat(
           state.settings,
           messages[0].text,
           messages[messages.length - 1].text,
-          state.memory,
+          new ChatMessageHistory(state.chatMessages.slice(1)),
           (message) => dispatch({ type: "ADD_TOKEN", token: message }),
           abortController.current.signal,
           settings.openAiKey ?? ""
         );
       } catch (error: any) {
         if (error.name === "Error" && error.message === "Cancel: canceled") {
-          // When the AI message is aborted, we need to save the context in the memory manually
-          // await state.memory.saveContext(
-          //   { input: state.chatMessages[state.chatMessages.length - 1].text },
-          //   { output: state.currentMessage].text }
-          // );
+          console.log("AI message canceled");
         } else {
           console.error("Error in AI message", error);
         }
       } finally {
         dispatch({ type: "END_AI_MESSAGE" });
+        if (!state.sessionId) {
+          const title = await chatTitle(messages);
+          addChatSession(title + " " + Date.now()).then((sessionId) => {
+            dispatch({
+              type: "SESSION_CREATED",
+              sessionId,
+            });
+          });
+        }
       }
     },
-    [state, state.currentMessage, settings.openAiKey]
+    [state, settings.openAiKey]
   );
 
   useEffect(() => {
     if (state.sendingMessage) {
-      handleButtonClick(state.chatMessages).finally(() =>
-        dispatch({ type: "HUMAN_MESSAGE SENT" })
-      );
+      handleButtonClick(state.chatMessages).finally(() => {
+        saveMessages(
+          state.sessionId,
+          state.chatMessages.map((message) => ({
+            sessionId: state.sessionId!,
+            timestamp: new Date(),
+            role: message._getType(),
+            content: message.text,
+          }))
+        ).then(() => {
+          dispatch({ type: "HUMAN_MESSAGE SENT" });
+        });
+      });
     }
   }, [state.sendingMessage]);
 
@@ -317,7 +336,7 @@ function Chatbot() {
     <div className="flex flex-col justify-around gap-4">
       <ul className="flex flex-col gap-1 mb-auto">
         {state.chatMessages.map((message, index) => (
-          <Message
+          <MessagePanel
             content={message.text}
             role={message._getType()}
             key={index}
@@ -325,7 +344,7 @@ function Chatbot() {
         ))}
 
         {state.currentMessage && (
-          <Message
+          <MessagePanel
             content={state.currentMessage.join("")}
             role="ai"
             nTokens={state.currentMessage.length}
@@ -333,6 +352,8 @@ function Chatbot() {
           />
         )}
       </ul>
+
+      {/*<div className="flex flex-col gap-2">{JSON.stringify(messages)}</div>*/}
 
       <div className="relative mt-auto">
         <Panel>
