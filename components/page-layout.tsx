@@ -7,9 +7,10 @@ import { ChatSessions } from "@/components/chat-sessions";
 import Overlay from "@/components/overlay";
 import useAutoScroll from "@/libs/use-autoscroll";
 import SettingsForm from "@/components/settings-form";
+import Link from "next/link";
 
 const navigation = [
-  { name: "New Chat", href: "#", icon: PlusIcon, current: true },
+  { name: "New Chat", href: "/chat", icon: PlusIcon, current: true },
   // { name: "Dashboard", href: "#", icon: HomeIcon, current: false },
   // { name: "Settings", href: "#", icon: CogIcon, current: false },
 
@@ -149,7 +150,7 @@ function SidebarContents({
             <ul role="list" className="-mx-2 space-y-1">
               {navigation.map((item) => (
                 <li key={item.name}>
-                  <a
+                  <Link
                     href={item.href}
                     className={classNames(
                       item.current
@@ -163,7 +164,7 @@ function SidebarContents({
                       aria-hidden="true"
                     />
                     {item.name}
-                  </a>
+                  </Link>
                 </li>
               ))}
               <li>

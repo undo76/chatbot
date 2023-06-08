@@ -2,20 +2,10 @@ import Chatbot from "@/components/chatbot";
 import PageLayout from "@/components/page-layout";
 import useAutoScroll from "@/libs/use-autoscroll";
 import { useRef } from "react";
+import ChatPageLayout from "@/components/chat-page-layout";
 
 function Home() {
-  const ref = useRef<HTMLDivElement>(null);
-  useAutoScroll(ref);
-
-  return (
-    <PageLayout>
-      <div ref={ref} className="h-full overflow-scroll p-10">
-        <div className=" m-auto max-w-5xl w-full">
-          <Chatbot />
-        </div>
-      </div>
-    </PageLayout>
-  );
+  return <ChatPageLayout />;
 }
 
 export default Home;

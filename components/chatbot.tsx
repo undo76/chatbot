@@ -20,24 +20,15 @@ import { Select } from "@/components/select";
 import { chat } from "@/libs/chat";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Panel from "@/components/Panel";
-import {
-  BaseChatMemory,
-  BufferWindowMemory,
-  ChatMessageHistory,
-} from "langchain/memory";
+import { ChatMessageHistory } from "langchain/memory";
 import { useSettings } from "@/components/settings";
 import { DEFAULT_PROMPT } from "@/libs/prompts";
-import {
-  addChatSession,
-  addMessage,
-  saveMessages,
-  useMessages,
-} from "@/libs/use-chat";
+import { addChatSession, saveMessages, useMessages } from "@/libs/use-chat";
 import { chatTitle } from "@/libs/chat-title";
-import { useChatMessages } from "@/libs/use-chat-messages";
+import { useRouter } from "next/router";
+import { Message } from "@/libs/db";
 
 interface ChatbotState {
-  sessionId: number | null;
   settings: {
     model: string;
     maxTokens: number;
@@ -49,18 +40,15 @@ interface ChatbotState {
   chatMessages: BaseChatMessage[];
   inputMessage: string | null;
   currentMessage: string[] | null;
-  creatingSession: boolean;
   sendingMessage: boolean;
+  savingMessages: boolean;
   // memory: BaseChatMemory;
 }
 
 type ChatbotAction =
   | {
-      type: "START_SESSION";
-    }
-  | {
-      type: "SESSION_CREATED";
-      sessionId: number;
+      type: "LOAD_MESSAGES";
+      messages: BaseChatMessage[];
     }
   | {
       type: "START_AI_MESSAGE";
@@ -71,6 +59,9 @@ type ChatbotAction =
     }
   | {
       type: "END_AI_MESSAGE";
+    }
+  | {
+      type: "MESSAGES_SAVED";
     }
   | {
       type: "ADD_HUMAN_MESSAGE";
@@ -92,7 +83,6 @@ type ChatbotAction =
     };
 
 const DEFAULT_STATE: ChatbotState = {
-  sessionId: null,
   settings: {
     model: "gpt-3.5-turbo",
     maxTokens: 1000,
@@ -104,27 +94,16 @@ const DEFAULT_STATE: ChatbotState = {
   chatMessages: [new SystemChatMessage(DEFAULT_PROMPT)],
   inputMessage: null,
   currentMessage: null,
-  creatingSession: false,
   sendingMessage: false,
-  // memory: new BufferWindowMemory({
-  //   returnMessages: true,
-  //   memoryKey: "history",
-  //   k: 10,
-  // }),
+  savingMessages: false,
 };
 
 function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
   switch (action.type) {
-    case "START_SESSION":
+    case "LOAD_MESSAGES":
       return {
         ...state,
-        creatingSession: true,
-      };
-    case "SESSION_CREATED":
-      return {
-        ...state,
-        creatingSession: false,
-        sessionId: action.sessionId,
+        chatMessages: action.messages,
       };
     case "START_AI_MESSAGE":
       return {
@@ -144,6 +123,12 @@ function reducer(state: ChatbotState, action: ChatbotAction): ChatbotState {
           new AIChatMessage((state.currentMessage ?? []).join("")),
         ],
         currentMessage: null,
+        savingMessages: true,
+      };
+    case "MESSAGES_SAVED":
+      return {
+        ...state,
+        savingMessages: false,
       };
     case "ADD_HUMAN_MESSAGE":
       return {
@@ -240,12 +225,34 @@ function ChatbotOptions(props: {
   );
 }
 
-function Chatbot(sessionId: number | null) {
+function loadMessages(messages: Message[]): BaseChatMessage[] {
+  return messages.map((message) => {
+    if (message.role === "system") {
+      return new SystemChatMessage(message.content);
+    } else if (message.role === "human") {
+      return new HumanChatMessage(message.content);
+    } else if (message.role === "ai") {
+      return new AIChatMessage(message.content);
+    } else {
+      throw new Error("Unknown message role");
+    }
+  });
+}
+
+function Chatbot({ sessionId }: { sessionId?: number }) {
+  const messages = useMessages(sessionId);
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const abortController = useRef<AbortController>(new AbortController());
   const { settings } = useSettings();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (sessionId && messages) {
+      dispatch({ type: "LOAD_MESSAGES", messages: loadMessages(messages) });
+    }
+  }, [messages, sessionId]);
 
   const handleButtonClick = useCallback(
     async (messages: BaseChatMessage[]) => {
@@ -269,15 +276,6 @@ function Chatbot(sessionId: number | null) {
         }
       } finally {
         dispatch({ type: "END_AI_MESSAGE" });
-        if (!state.sessionId) {
-          const title = await chatTitle(messages);
-          addChatSession(title + " " + Date.now()).then((sessionId) => {
-            dispatch({
-              type: "SESSION_CREATED",
-              sessionId,
-            });
-          });
-        }
       }
     },
     [state, settings.openAiKey]
@@ -285,21 +283,39 @@ function Chatbot(sessionId: number | null) {
 
   useEffect(() => {
     if (state.sendingMessage) {
-      handleButtonClick(state.chatMessages).finally(() => {
-        saveMessages(
-          state.sessionId,
-          state.chatMessages.map((message) => ({
-            sessionId: state.sessionId!,
-            timestamp: new Date(),
-            role: message._getType(),
-            content: message.text,
-          }))
-        ).then(() => {
-          dispatch({ type: "HUMAN_MESSAGE SENT" });
-        });
-      });
+      handleButtonClick(state.chatMessages).finally(() =>
+        dispatch({ type: "HUMAN_MESSAGE SENT" })
+      );
     }
   }, [state.sendingMessage]);
+
+  useEffect(() => {
+    if (!state.savingMessages) {
+      return;
+    }
+
+    Promise.resolve().then(async () => {
+      console.debug("Saving messages");
+      let sid = sessionId;
+      if (!sessionId) {
+        const title = await chatTitle(state.chatMessages);
+        sid = await addChatSession(title);
+      }
+      await saveMessages(
+        sid!,
+        state.chatMessages.map((message) => ({
+          sessionId: sid!,
+          timestamp: new Date(),
+          role: message._getType(),
+          content: message.text,
+        }))
+      );
+      if (!sessionId) {
+        await router.replace(`/chat/${sid}`);
+      }
+      dispatch({ type: "MESSAGES_SAVED" });
+    });
+  }, [state.chatMessages, state.savingMessages, sessionId, router]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -324,16 +340,11 @@ function Chatbot(sessionId: number | null) {
     [state.inputMessage, state.currentMessage]
   );
 
-  // const [messages, setMessages] = useState<BaseChatMessage[]>([]);
-  //
-  // useEffect(() => {
-  //   state.memory.chatHistory.getMessages().then((messages) => {
-  //     setMessages(messages);
-  //   });
-  // }, [state]);
-
   return (
     <div className="flex flex-col justify-around gap-4">
+      {/*<pre className="text-xs whitespace-pre-wrap">*/}
+      {/*  {JSON.stringify(messages, null, 2)}*/}
+      {/*</pre>*/}
       <ul className="flex flex-col gap-1 mb-auto">
         {state.chatMessages.map((message, index) => (
           <MessagePanel

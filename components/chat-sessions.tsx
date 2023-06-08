@@ -5,11 +5,14 @@ import {
 } from "@heroicons/react/24/outline";
 import { classNames } from "@/libs/class-names";
 import LinkButton from "@/components/link-button";
-import { useChatSessions } from "@/libs/use-chat";
+import { deleteChatSession, useChatSessions } from "@/libs/use-chat";
 import { ChatSession } from "@/libs/db";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
 export function ChatSessions({}: {}) {
   const chatSessions = useChatSessions();
+  const router = useRouter();
 
   if (!chatSessions) return <div>Loading...</div>;
 
@@ -25,28 +28,39 @@ export function ChatSessions({}: {}) {
       <ul role="list" className="-mx-2 mt-2 space-y-0">
         {chatSessions?.map((chatSession: ChatSession) => (
           <li key={chatSession.name}>
-            <a
+            <Link
+              href={`/chat/${chatSession.id}`}
               className={classNames(
                 "text-gray-400 hover:text-white hover:bg-gray-800",
                 "group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-normal"
               )}
             >
-              <span className="truncate">{chatSession.name}</span>
-              <LinkButton
-                icon={PencilIcon}
-                size="xs"
-                className="ml-auto text-gray-500 hover:text-white"
-              >
-                <span className="sr-only">Edit chat</span>
-              </LinkButton>
+              <span className="truncate mr-auto">{chatSession.name}</span>
+              {/*<LinkButton*/}
+              {/*  icon={PencilIcon}*/}
+              {/*  size="xs"*/}
+              {/*  className="ml-auto text-gray-500 hover:text-white"*/}
+              {/*>*/}
+              {/*  <span className="sr-only">Edit chat</span>*/}
+              {/*</LinkButton>*/}
               <LinkButton
                 icon={TrashIcon}
                 size="xs"
                 className="text-gray-500 hover:text-white"
+                onClick={async () => {
+                  if (
+                    confirm(
+                      `Are you sure you want to delete "${chatSession.name}"?`
+                    )
+                  ) {
+                    await deleteChatSession(chatSession.id!);
+                    await router.replace("/chat");
+                  }
+                }}
               >
                 <span className="sr-only">Delete chat</span>
               </LinkButton>
-            </a>
+            </Link>
           </li>
         ))}
       </ul>
